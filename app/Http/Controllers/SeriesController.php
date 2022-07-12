@@ -2,34 +2,75 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Series;
+use App\Models\Season;
+use App\Models\Episode;
+use App\Http\Requests\SeriesFormRequest;
 use Illuminate\Http\Request;
-use App\Models\Serie;
-use DB;
+use Illuminate\Support\Facades\DB;
 
 class SeriesController extends Controller
 {
     public function index(Request $request)
     {
-        $series = Serie::query()->orderBy('nome')->get();
-        $msgSucesso = session('mensagem.sucesso');
+        $series = Series::all();
+        $mensagemSucesso = session('mensagem.sucesso');
 
-        return view('series.index')->with('series',$series)->with('msgSucesso', $msgSucesso);
+        return view('series.index')->with('series', $series)
+            ->with('mensagemSucesso', $mensagemSucesso);
     }
+
     public function create()
     {
         return view('series.create');
     }
-    public function store(Request $request)
+
+    public function store(SeriesFormRequest $request)
     {
-        $serie = Serie::create($request->all());
-        $request->session()->flash('mensagem.sucesso', "A série '{$serie->nome}' foi cadastrada com sucesso!");
-        return redirect('/series');
+        $serie = Series::create($request->all());
+        $seasons=[];
+        for ($i=1; $i <= $request->seasonsQty; $i++) { 
+            $seasons[]=[
+                'series_id' => $serie->id,
+                'number' => $i
+            ];
+        }
+        Season::insert($seasons);
+
+        $episodes=[];
+        foreach($serie->seasons as $season) {
+            for ($j=1; $j <= $request->episodesPerSeason; $j++) { 
+                $episodes[]=[
+                    'season_id' => $season->id,
+                    'number' => $j
+                ];
+            }
+        }
+        Episode::insert($episodes);
+
+        return to_route('series.index')
+            ->with('mensagem.sucesso', "Série '{$serie->nome}' adicionada com sucesso");
     }
-    public function destroy(Request $request)
+
+    public function destroy(Series $series)
     {
-        $serie = Serie::find($request->id);
-        Serie::destroy($request->id);
-        $request->session()->flash('mensagem.sucesso', "A série '{$serie->nome}' foi removida com sucesso!");
-        return redirect('/series');
+        $series->delete();
+
+        return to_route('series.index')
+            ->with('mensagem.sucesso', "Série '{$series->nome}' removida com sucesso");
+    }
+
+    public function edit(Series $series)
+    {
+        return view('series.edit')->with('serie', $series);
+    }
+
+    public function update(Series $series, SeriesFormRequest $request)
+    {
+        $series->fill($request->all());
+        $series->save();
+
+        return to_route('series.index')
+            ->with('mensagem.sucesso', "Série '{$series->nome}' atualizada com sucesso");
     }
 }
